@@ -11,6 +11,13 @@
 
 #include <driver/gpio.h>
 #include <driver/i2s.h>
+#ifdef RG_TARGET_ROBGO_RG
+#include "i2s_control.h"
+#define AUDIO_INTR_FLAGS (ESP_INTR_FLAG_LEVEL2 | ESP_INTR_FLAG_IRAM)
+#else
+#define AUDIO_INTR_FLAGS 0
+static esp_err_t audio_i2s_install(const i2s_config_t *config) { return i2s_driver_install(I2S_NUM_0, config, 0, NULL); }
+#endif
 
 #ifdef RG_GPIO_SND_AMP_ENABLE_INVERT
 #define MUTE_ENABLE 1
@@ -23,8 +30,14 @@
 // We can safely assume that no application will submit more than 640 audio frames per call to
 // driver_submit (32000/50). Using a single large buffer risks blocking the call needlessly because
 // some apps submit more than once per cycle or there could be occasional jitter (early submission).
+#ifdef RG_TARGET_ROBGO_RG
+// 45 ms a 32 kHz; 180 quadros estereo de 16 bits = 720 bytes alinhados.
+#define DMA_BUFFER_COUNT 8
+#define DMA_BUFFER_LEN 180
+#else
 #define DMA_BUFFER_COUNT 4
 #define DMA_BUFFER_LEN 180
+#endif
 
 static struct {
     const char *last_error;
@@ -37,20 +50,24 @@ static bool driver_init(int device, int sample_rate)
 {
     state.last_error = NULL;
     state.device = device;
+    RG_LOGI("I2S buffer: %d x %d frames, %.1f ms at %d Hz",
+            DMA_BUFFER_COUNT, DMA_BUFFER_LEN,
+            1000.0 * DMA_BUFFER_COUNT * DMA_BUFFER_LEN / sample_rate, sample_rate);
 
     if (state.device == 0)
     {
     #if RG_AUDIO_USE_INT_DAC
-        esp_err_t ret = i2s_driver_install(I2S_NUM_0, &(i2s_config_t){
+        esp_err_t ret = audio_i2s_install(&(i2s_config_t){
             .mode = I2S_MODE_MASTER | I2S_MODE_TX | I2S_MODE_DAC_BUILT_IN,
             .sample_rate = sample_rate,
             .bits_per_sample = 16,
             .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
             .communication_format = I2S_COMM_FORMAT_STAND_MSB,
-            .intr_alloc_flags = 0, // ESP_INTR_FLAG_LEVEL1
+            .intr_alloc_flags = AUDIO_INTR_FLAGS,
             .dma_buf_count = DMA_BUFFER_COUNT,
             .dma_buf_len = DMA_BUFFER_LEN,
-        }, 0, NULL);
+            .tx_desc_auto_clear = false,
+        });
         if (ret == ESP_OK)
             ret = i2s_set_dac_mode(RG_AUDIO_USE_INT_DAC);
         if (ret != ESP_OK)
@@ -62,19 +79,20 @@ static bool driver_init(int device, int sample_rate)
     else if (state.device == 1)
     {
     #if RG_AUDIO_USE_EXT_DAC
-        esp_err_t ret = i2s_driver_install(I2S_NUM_0, &(i2s_config_t){
+        esp_err_t ret = audio_i2s_install(&(i2s_config_t){
             .mode = I2S_MODE_MASTER | I2S_MODE_TX,
             .sample_rate = sample_rate,
             .bits_per_sample = 16,
             .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
             .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-            .intr_alloc_flags = 0, // ESP_INTR_FLAG_LEVEL1
+            .intr_alloc_flags = AUDIO_INTR_FLAGS,
             .dma_buf_count = DMA_BUFFER_COUNT,
             .dma_buf_len = DMA_BUFFER_LEN,
+            .tx_desc_auto_clear = false,
         #if CONFIG_IDF_TARGET_ESP32
             .use_apll = true, // External DAC may care about accuracy
         #endif
-        }, 0, NULL);
+        });
         if (ret == ESP_OK)
         {
             ret = i2s_set_pin(I2S_NUM_0, &(i2s_pin_config_t) {
@@ -106,7 +124,15 @@ static bool driver_set_sample_rates(int sampleRate)
 
 static bool driver_deinit(void)
 {
+#ifdef RG_TARGET_ROBGO_RG
+    esp_err_t ret = audio_i2s_lifecycle(NULL);
+    if (ret != ESP_OK) {
+        state.last_error = esp_err_to_name(ret);
+        return false;
+    }
+#else
     i2s_driver_uninstall(I2S_NUM_0);
+#endif
     if (state.device == 0)
     {
     #if RG_AUDIO_USE_INT_DAC
@@ -129,15 +155,15 @@ static bool driver_deinit(void)
 
 static bool driver_submit(const rg_audio_frame_t *frames, size_t count)
 {
-    float volume = state.muted ? 0.f : (state.volume * 0.01f);
+    const int volume = state.muted ? 0 : state.volume;
     bool use_internal_dac = state.device == 0;
     rg_audio_frame_t buffer[DMA_BUFFER_LEN];
     size_t pos = 0;
 
     for (size_t i = 0; i < count; ++i)
     {
-        int left = frames[i].left * volume;
-        int right = frames[i].right * volume;
+        int left = frames[i].left * volume / 100;
+        int right = frames[i].right * volume / 100;
 
         if (use_internal_dac)
         {
@@ -147,6 +173,11 @@ static bool driver_submit(const rg_audio_frame_t *frames, size_t count)
         #elif RG_AUDIO_USE_INT_DAC == 2
             left = 0;
             right = ((left + right) >> 1) + 0x8000; // the internal DAC expects unsigned data
+        #elif RG_AUDIO_USE_INT_DAC == 3 && RG_AUDIO_INT_DAC_STEREO
+            // DMA: primeira amostra vai ao DAC1/GPIO25 (direita).
+            int sample_left = left;
+            left = right + 0x8000;
+            right = sample_left + 0x8000;
         #elif RG_AUDIO_USE_INT_DAC == 3
             // In two channel mode we use left and right as a differential mono output to increase resolution.
             int sample = (left + right) >> 1;
@@ -176,11 +207,15 @@ static bool driver_submit(const rg_audio_frame_t *frames, size_t count)
         buffer[pos].left = left;
         buffer[pos].right = right;
 
-        if (i == count - 1 || ++pos == RG_COUNT(buffer))
+        if (++pos == RG_COUNT(buffer) || i == count - 1)
         {
-            size_t written;
-            if (i2s_write(I2S_NUM_0, (void *)buffer, pos * 4, &written, 1000) != ESP_OK)
-                RG_LOGW("I2S Submission error! Written: %d/%d\n", written, pos * 4);
+            size_t written = 0;
+            esp_err_t result = i2s_write(I2S_NUM_0, (void *)buffer, pos * 4, &written, pdMS_TO_TICKS(1000));
+            if (result != ESP_OK || written != pos * 4) {
+                RG_LOGW("I2S submission: error=%s written=%u/%u", esp_err_to_name(result),
+                        (unsigned)written, (unsigned)(pos * 4));
+                return false;
+            }
             pos = 0;
         }
     }

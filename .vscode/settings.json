@@ -1,0 +1,15 @@
+{
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "files.exclude": {
+    "**/__pycache__": true
+  },
+  "search.exclude": {
+    "**/build": true,
+    "**/.pio": true,
+    "dist": true
+  },
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/fmsx/build/compile_commands.json",
+  "C_Cpp.default.configurationProvider": "",
+  "platformio-ide.autoRebuildAutocompleteIndex": false
+}

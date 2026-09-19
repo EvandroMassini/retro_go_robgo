@@ -103,9 +103,16 @@ bool rg_input_read_battery_raw(rg_battery_t *out)
     return true;
 }
 
+#ifdef RG_TARGET_ROBGO_RG
+#include "rg_robgo.h"
+#endif
+
 bool rg_input_read_gamepad_raw(uint32_t *out)
 {
     uint32_t state = 0;
+#ifdef RG_TARGET_ROBGO_RG
+    state = rg_robgo_gamepad();
+#endif
 
 #if defined(RG_GAMEPAD_ADC_MAP)
     static int old_adc_values[RG_COUNT(keymap_adc)];
@@ -268,6 +275,10 @@ static void input_task(void *arg)
 void rg_input_init(void)
 {
     RG_ASSERT(!input_task_running, "Input already initialized!");
+#ifdef RG_TARGET_ROBGO_RG
+    rg_robgo_input_init();
+    gamepad_mapped = RG_KEY_ANY;
+#endif
 
 #if defined(RG_GAMEPAD_ADC_MAP)
     RG_LOGI("Initializing ADC gamepad driver...");

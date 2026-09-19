@@ -1,6 +1,6 @@
 #include "../rg_gui.h"
 
-// File generated with font_converter.py (https://github.com/ducalex/retro-go/tree/dev/tools)
+// File generated with font_converter.py (https://github.com/EvandroMassini/retro_go_robgo)
 
 // Font           : DejaVu Sans Book
 // Point Size     : 12

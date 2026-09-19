@@ -1,4 +1,6 @@
-#if defined(RG_TARGET_BRUTZELBOY)
+#if defined(RG_TARGET_ROBGO_RG)
+#include "targets/robgo-rg/config.h"
+#elif defined(RG_TARGET_BRUTZELBOY)
 #include "targets/brutzelboy/config.h"
 #elif defined(RG_TARGET_ODROID_GO)
 #include "targets/odroid-go/config.h"
@@ -43,7 +45,7 @@
 #endif
 
 #ifndef RG_PROJECT_WEBSITE
-#define RG_PROJECT_WEBSITE "https://github.com/ducalex/retro-go"
+#define RG_PROJECT_WEBSITE "https://github.com/EvandroMassini/retro_go_robgo"
 #endif
 
 #ifndef RG_PROJECT_CREDITS
@@ -93,7 +95,7 @@
 // #define RG_UPDATER_DOWNLOAD_LOCATION RG_STORAGE_ROOT "/odroid/firmware"
 
 #ifndef RG_UPDATER_GITHUB_RELEASES
-#define RG_UPDATER_GITHUB_RELEASES "https://api.github.com/repos/ducalex/retro-go/releases?per_page=10"
+#define RG_UPDATER_GITHUB_RELEASES "https://api.github.com/repos/EvandroMassini/retro_go_robgo/releases?per_page=10"
 #endif
 
 #ifndef RG_PATH_MAX

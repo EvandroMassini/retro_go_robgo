@@ -44,7 +44,7 @@ Colors are RGB565 and can be represented as integers or hex strings. The special
 ````json
 {
     "description": "Default Retro-Go Theme",
-    "website": "https://github.com/ducalex/retro-go/",
+    "website": "https://github.com/EvandroMassini/retro_go_robgo/",
     "author": "ducalex",
     "dialog": {
         "__comment": "This section contains global dialog colors",

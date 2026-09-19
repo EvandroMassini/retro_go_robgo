@@ -76,8 +76,8 @@ def build_image(apps, output_file, img_type="odroid", fatsize=0, target="unknown
     if img_type not in ["odroid", "esplay"]:
         print("Building bootloader...")
         bootloader_file = os.path.join(os.getcwd(), list(apps)[0], "build", "bootloader", "bootloader.bin")
-        if not os.path.exists(bootloader_file):
-            run([IDF_PY, "bootloader"], cwd=os.path.join(os.getcwd(), list(apps)[0]))
+        # Incremental build also refreshes an existing bootloader after sdkconfig changes.
+        run([IDF_PY, "bootloader"], cwd=os.path.join(os.getcwd(), list(apps)[0]))
         args += ["--target", target, "--bootloader", bootloader_file]
 
     args += [output_file]
@@ -111,11 +111,14 @@ def clean_app(app):
 
 
 def build_app(app, device_type, with_profiling=False, no_networking=False, is_release=False):
+    # RobGo: firmware local, sem tarefas/menus de rede concorrentes.
+    no_networking = no_networking or device_type == "robgo-rg"
     # To do: clean up if any of the flags changed since last build
     print("Building app '%s'" % app)
     args = [IDF_PY, "app"]
     args.append(f"-DRG_PROJECT_APP={app}")
     args.append(f"-DRG_PROJECT_VER={PROJECT_VER}")
+    args.append(f"-DPROJECT_VER={PROJECT_VER}")
     args.append(f"-DRG_BUILD_TARGET=RG_TARGET_{re.sub(r'[^A-Z0-9]', '_', device_type.upper())}")
     args.append(f"-DRG_BUILD_RELEASE={1 if is_release else 0}")
     args.append(f"-DRG_ENABLE_PROFILING={1 if with_profiling else 0}")
@@ -183,6 +186,7 @@ parser.add_argument(
     "--fatsize", help="Add FAT storage partition of provided size (500K, 5M,...) to the built image."
 )
 args = parser.parse_args()
+os.environ["RG_TOOL_TARGET"] = args.target  # Disponível na análise inicial de dependências do CMake.
 
 if os.path.exists(f"components/retro-go/targets/{args.target}/env.py"):
     with open(f"components/retro-go/targets/{args.target}/env.py", "rb") as f:

@@ -155,6 +155,22 @@ FDIDisk FDD[4];                    /* Floppy disk images     */
 /** Sound hardware: PSG, SCC, OPLL ***************************/
 AY8910 PSG;                        /* PSG registers & state  */
 YM2413 OPLL;                       /* OPLL registers & state */
+#ifdef RG_TARGET_ROBGO_RG
+int FMEnabled = 1;
+void SetFMEnabled(int Enabled)
+{
+  int I;
+  FMEnabled=!!Enabled;
+  if(!FMEnabled)
+    for(I=0;I<YM2413_CHANNELS;++I) Sound(AY8910_CHANNELS+SCC_CHANNELS+I,0,0);
+  else
+  {
+    OPLL.Changed=OPLL.PChanged=(1<<YM2413_CHANNELS)-1;
+    OPLL.DChanged=0x1F;
+    Sync2413(&OPLL,YM2413_FLUSH);
+  }
+}
+#endif
 SCC  SCChip;                       /* SCC registers & state  */
 byte SCCOn[2];                     /* 1 = SCC page active    */
 word FMPACKey;                     /* MAGIC = SRAM active    */
@@ -186,6 +202,10 @@ int  Palette[16];                  /* Current palette        */
 
 /** Cheat entries ********************************************/
 int MCFCount     = 0;              /* Size of MCFEntries[]   */
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+EXT_RAM_ATTR
+#endif
 MCFEntry MCFEntries[MAXCHEATS];    /* Entries from .MCF file */
 
 /** Cheat codes **********************************************/
@@ -244,8 +264,8 @@ static const struct { byte R2,R3,R4,R5,M2,M3,M4,M5; } MSK[MAXSCREEN+2] =
 };
 
 /** MegaROM Mapper Names *************************************/
-static const char *ROMNames[MAXMAPPERS+1] = 
-{ 
+static const char *ROMNames[MAXMAPPERS+1] =
+{
   "GENERIC/8kB","GENERIC/16kB","KONAMI5/8kB",
   "KONAMI4/8kB","ASCII/8kB","ASCII/16kB",
   "GMASTER2/SRAM","FMPAC/SRAM","UNKNOWN"
@@ -456,7 +476,7 @@ int StartMSX(int NewMode,int NewRAMPages,int NewVRAMPages)
     ROMType[J]  = 0;
     SRAMData[J] = 0;
     SRAMName[J] = 0;
-    SaveSRAM[J] = 0; 
+    SaveSRAM[J] = 0;
   }
 
   /* UPeriod has ot be in 1%..100% range */
@@ -581,7 +601,7 @@ int StartMSX(int NewMode,int NewRAMPages,int NewVRAMPages)
   {
     FDD[J].Verbose=Verbose&0x04;
     if(ChangeDisk(J,DSKName[J]))
-      if(Verbose) printf("Inserting %s into drive %c\n",DSKName[J],J+'A');  
+      if(Verbose) printf("Inserting %s into drive %c\n",DSKName[J],J+'A');
   }
 
   /* Initialize sound logging */
@@ -647,7 +667,7 @@ void TrashMSX(void)
 
   /* Close tape */
   ChangeTape(0);
-  
+
   /* Close all IO streams */
   if(ComOStream&&(ComOStream!=stdout)) fclose(ComOStream);
   if(ComIStream&&(ComIStream!=stdin))  fclose(ComIStream);
@@ -729,7 +749,7 @@ int ResetMSX(int NewMode,int NewRAMPages,int NewVRAMPages)
         if(Verbose) printf("  Opening MSX2EXT.ROM...");
         P2=LoadROM("MSX2EXT.ROM",0x4000,0);
         PRINTRESULT(P2);
-        if(!P1||!P2) 
+        if(!P1||!P2)
         {
           NewMode=(NewMode&~MSX_MODEL)|(Mode&MSX_MODEL);
           FreeMemory(P1);
@@ -755,7 +775,7 @@ int ResetMSX(int NewMode,int NewRAMPages,int NewVRAMPages)
         if(Verbose) printf("  Opening MSX2PEXT.ROM...");
         P2=LoadROM("MSX2PEXT.ROM",0x4000,0);
         PRINTRESULT(P2);
-        if(!P1||!P2) 
+        if(!P1||!P2)
         {
           NewMode=(NewMode&~MSX_MODEL)|(Mode&MSX_MODEL);
           FreeMemory(P1);
@@ -929,7 +949,11 @@ int ResetMSX(int NewMode,int NewRAMPages,int NewVRAMPages)
   /* Reset sound chips */
   Reset8910(&PSG,PSG_CLOCK,0);
   ResetSCC(&SCChip,AY8910_CHANNELS);
+#ifdef RG_TARGET_ROBGO_RG
+  Reset2413(&OPLL,AY8910_CHANNELS+SCC_CHANNELS);
+#else
   Reset2413(&OPLL,AY8910_CHANNELS);
+#endif
   Sync8910(&PSG,AY8910_SYNC);
   SyncSCC(&SCChip,SCC_SYNC);
   Sync2413(&OPLL,YM2413_SYNC);
@@ -1139,7 +1163,7 @@ case 0x99: /* VDP status registers */
   /* Read an appropriate status register */
   Port=VDPStatus[VDP[15]];
   /* Reset VAddr latch sequencer */
-// @@@ This breaks Sir Lancelot on ColecoVision, so it must be wrong! 
+// @@@ This breaks Sir Lancelot on ColecoVision, so it must be wrong!
 //  VKey=1;
   /* Update status register's contents */
   switch(VDP[15])
@@ -1241,7 +1265,7 @@ case 0x7C: WrCtrl2413(&OPLL,Value);return;        /* OPLL Register# */
 case 0x7D: WrData2413(&OPLL,Value);return;        /* OPLL Data      */
 case 0x91: Printer(Value);return;                 /* Printer Data   */
 case 0xA0: WrCtrl8910(&PSG,Value);return;         /* PSG Register#  */
-case 0xB4: RTCReg=Value&0x0F;return;              /* RTC Register#  */ 
+case 0xB4: RTCReg=Value&0x0F;return;              /* RTC Register#  */
 
 case 0xD8: /* Upper bits of Kanji ROM address */
   KanLetter=(KanLetter&0x1F800)|((int)(Value&0x3F)<<5);
@@ -1270,7 +1294,7 @@ case 0x98: /* VDP Data */
   VDPData=VPAGE[VAddr]=Value;
   VAddr=(VAddr+1)&0x3FFF;
   /* If VAddr rolled over, modify VRAM page# */
-  if(!VAddr&&(ScrMode>3)) 
+  if(!VAddr&&(ScrMode>3))
   {
     VDP[14]=(VDP[14]+1)&(VRAMPages-1);
     VPAGE=VRAM+((int)VDP[14]<<14);
@@ -1368,7 +1392,7 @@ case 0xAB: /* PPI control register */
   if(PPI.Rout[2]!=IOReg) { PPIOut(PPI.Rout[2],IOReg);IOReg=PPI.Rout[2]; }
   /* If primary slot state has changed... */
   if(PPI.Rout[0]!=PSLReg) PSlot(PPI.Rout[0]);
-  /* Done */  
+  /* Done */
   return;
 
 case 0xB5: /* RTC Data */
@@ -1465,7 +1489,7 @@ printf("(%04Xh) = %02Xh at PC=%04Xh\n",A,V,CPU.PC.W);
       /* to write into SCC wave buffer using EmptyRAM  */
       /* as a scratch pad.                             */
       if(!ROMData[I]&&(J<0xA0)) EmptyRAM[0x1800+J]=V;
-   
+
       /* Output data to SCC chip */
       WriteSCCP(&SCChip,J,V);
     }
@@ -1475,12 +1499,12 @@ printf("(%04Xh) = %02Xh at PC=%04Xh\n",A,V,CPU.PC.W);
       /* to write into SCC wave buffer using EmptyRAM  */
       /* as a scratch pad.                             */
       if(!ROMData[I]&&(J<0x80)) EmptyRAM[0x1800+J]=V;
-   
+
       /* Output data to SCC chip */
       WriteSCC(&SCChip,J,V);
     }
 
-    /* Done writing to SCC */   
+    /* Done writing to SCC */
     return;
   }
 
@@ -1742,7 +1766,7 @@ printf("(%04Xh) = %02Xh at PC=%04Xh\n",A,V,CPU.PC.W);
       break;
   }
 
-  /* No MegaROM mapper or there is an incorrect write */     
+  /* No MegaROM mapper or there is an incorrect write */
   if(Verbose&0x08) printf("MEMORY: Bad write (%d:%d:%04Xh) = %02Xh\n",PS,SS,A,V);
 }
 
@@ -1753,7 +1777,7 @@ printf("(%04Xh) = %02Xh at PC=%04Xh\n",A,V,CPU.PC.W);
 void PSlot(register byte V)
 {
   register byte J,I;
-  
+
   if(PSLReg!=V)
     for(PSLReg=V,J=0;J<4;++J,V>>=2)
     {
@@ -1886,10 +1910,10 @@ void SetMegaROM(int Slot,byte P0,byte P1,byte P2,byte P3)
 /** Write value into a given VDP register.                  **/
 /*************************************************************/
 void VDPOut(register byte R,register byte V)
-{ 
+{
   register byte J;
 
-  switch(R)  
+  switch(R)
   {
     case  0: /* Reset HBlank interrupt if disabled */
              if((VDPStatus[1]&0x01)&&!(V&0x10))
@@ -1940,7 +1964,7 @@ void VDPOut(register byte R,register byte V)
 
   /* Write value into a register */
   VDP[R]=V;
-} 
+}
 
 /** Printer() ************************************************/
 /** Send a character to the printer.                        **/
@@ -2013,7 +2037,7 @@ byte RTCIn(register byte R)
         case 11: J=(TM.tm_year-80)%10;break;
         case 12: J=((TM.tm_year-80)/10)%10;break;
         default: J=0x0F;break;
-      } 
+      }
     }
 
   /* Four upper bits are always high */
@@ -2145,6 +2169,42 @@ word LoopZ80(Z80 *R)
   /* Run V9938 engine */
   LoopVDP();
 
+  /* Every few scanlines, update sound before the (possibly slow) blit. */
+  if(!(ScanLine&0x07))
+  {
+#ifdef RG_TARGET_ROBGO_RG
+    static int audioLine = -1;
+    int linesPerFrame = PALVideo ? 313 : 262;
+    int span;
+    if(audioLine < 0)
+      span = 8;
+    else if(!ScanLine)
+      span = linesPerFrame - audioLine;
+    else
+      span = ScanLine - audioLine;
+    if(span < 1) span = 8;
+    audioLine = ScanLine;
+    J = (int)((1000000LL * CPU_HPERIOD * span) / CPU_CLOCK);
+#else
+    /* Compute number of microseconds */
+    J = (int)(1000000L*(CPU_HPERIOD<<3)/CPU_CLOCK);
+#endif
+
+    /* Update AY8910 state */
+    Loop8910(&PSG,J);
+
+    /* Flush changes to sound channels, only hit drums once a frame */
+    Sync8910(&PSG,AY8910_FLUSH|(!ScanLine&&OPTION(MSX_DRUMS)? AY8910_DRUMS:0));
+    SyncSCC(&SCChip,SCC_FLUSH);
+#ifdef RG_TARGET_ROBGO_RG
+    if(FMEnabled)
+#endif
+    Sync2413(&OPLL,YM2413_FLUSH);
+
+    /* Render and play all sound now */
+    PlayAllSound(J);
+  }
+
   /* Refresh scanline, possibly with the overscan */
   if((UCount>=100)&&Drawing&&(ScanLine<256))
   {
@@ -2153,24 +2213,6 @@ word LoopZ80(Z80 *R)
     else
       if(ModeYAE) RefreshLine10(ScanLine);
       else RefreshLine12(ScanLine);
-  }
-
-  /* Every few scanlines, update sound */
-  if(!(ScanLine&0x07))
-  {
-    /* Compute number of microseconds */
-    J = (int)(1000000L*(CPU_HPERIOD<<3)/CPU_CLOCK);
-
-    /* Update AY8910 state */
-    Loop8910(&PSG,J);
-
-    /* Flush changes to sound channels, only hit drums once a frame */
-    Sync8910(&PSG,AY8910_FLUSH|(!ScanLine&&OPTION(MSX_DRUMS)? AY8910_DRUMS:0));
-    SyncSCC(&SCChip,SCC_FLUSH);
-    Sync2413(&OPLL,YM2413_FLUSH);
-
-    /* Render and play all sound now */
-    PlayAllSound(J);
   }
 
   /* Keyboard, sound, and other stuff always runs at line 192    */
@@ -2279,7 +2321,7 @@ int CheckSprites(void)
     for(S=SprTab;J;J>>=1,S+=4)
       if(J&1)
         for(I=J>>1,D=S+4;I;I>>=1,D+=4)
-          if(I&1) 
+          if(I&1)
           {
             DV=S[0]-D[0];
             if((DV<16)||(DV>240))
@@ -2308,7 +2350,7 @@ int CheckSprites(void)
     for(S=SprTab;J;J>>=1,S+=4)
       if(J&1)
         for(I=J>>1,D=S+4;I;I>>=1,D+=4)
-          if(I&1) 
+          if(I&1)
           {
             DV=S[0]-D[0];
             if((DV<8)||(DV>248))
@@ -2898,7 +2940,7 @@ byte LoadFNT(const char *FileName)
   fread(FontBuf,1,256*8,F);
   /* Done */
   fclose(F);
-  return(1);  
+  return(1);
 }
 
 /** LoadROM() ************************************************/
@@ -3129,7 +3171,7 @@ int LoadCart(const char *FileName,int Slot,int Type)
       C2=fgetc(F);
     }
 
-  /* If we can't find "AB" signature, drop out */     
+  /* If we can't find "AB" signature, drop out */
   if((C1!='A')||(C2!='B'))
   {
     if(Verbose) puts("  Not a valid cartridge ROM");
@@ -3161,7 +3203,7 @@ int LoadCart(const char *FileName,int Slot,int Type)
 
   /* Mirror ROM if it is smaller than 2^n pages */
   if(Len<Pages)
-    memcpy(P+Len*0x2000,P+(Len-Pages/2)*0x2000,(Pages-Len)*0x2000); 
+    memcpy(P+Len*0x2000,P+(Len-Pages/2)*0x2000,(Pages-Len)*0x2000);
 
   /* Detect ROMs containing BASIC code */
   BASIC=(P[0]=='A')&&(P[1]=='B')&&!(P[2]||P[3])&&(P[8]||P[9]);
@@ -3281,7 +3323,7 @@ int LoadCart(const char *FileName,int Slot,int Type)
     if((SRAMName[Slot]=(char *)GetMemory(strlen(FileName)+5)))
     {
       /* Compose SRAM file name */
-      strcpy(SRAMName[Slot],FileName);      
+      strcpy(SRAMName[Slot],FileName);
       T=strrchr(SRAMName[Slot],'.');
       if(T) strcpy(T,".sav"); else strcat(SRAMName[Slot],".sav");
       /* Try opening file... */
@@ -3317,7 +3359,7 @@ int LoadCart(const char *FileName,int Slot,int Type)
             break;
         }
       }
-    } 
+    }
   }
 
   /* Done setting up cartridge */

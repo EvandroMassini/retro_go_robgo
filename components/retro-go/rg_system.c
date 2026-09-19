@@ -262,7 +262,9 @@ static void system_monitor_task(void *arg)
         update_indicators(false);
 
         // Try to avoid complex conversions that could allocate, prefer rounding/ceiling if necessary.
-        rg_system_log(RG_LOG_DEBUG, NULL, "STACK:%d, HEAP:%d+%d (%d+%d), BUSY:%d%%, FPS:%d (S:%d R:%d+%d), BATT:%d",
+
+#if !defined(RG_QUIET_PERIODIC_LOGS) || !RG_QUIET_PERIODIC_LOGS
+rg_system_log(RG_LOG_DEBUG, NULL, "STACK:%d, HEAP:%d+%d (%d+%d), BUSY:%d%%, FPS:%d (S:%d R:%d+%d), BATT:%d",
             statistics.freeStackMain,
             statistics.freeMemoryInt / 1024,
             statistics.freeMemoryExt / 1024,
@@ -274,6 +276,8 @@ static void system_monitor_task(void *arg)
             (int)roundf(statistics.partialFPS),
             (int)roundf(statistics.fullFPS),
             (int)roundf((battery.volts * 1000) ?: battery.level));
+#endif
+
 
         // Auto frameskip
         if (statistics.ticks > app.tickRate * 2)
@@ -284,12 +288,20 @@ static void system_monitor_task(void *arg)
             if (speed > 99.f && statistics.busyPercent < 85.f && app.frameskip > 1)
             {
                 app.frameskip--;
-                RG_LOGI("Reduced frameskip to %d", app.frameskip);
+
+#if !defined(RG_QUIET_PERIODIC_LOGS) || !RG_QUIET_PERIODIC_LOGS
+RG_LOGI("Reduced frameskip to %d", app.frameskip);
+#endif
+
             }
             else if (speed < 96.f && statistics.busyPercent > 85.f && app.frameskip < 5)
             {
                 app.frameskip++;
-                RG_LOGI("Raised frameskip to %d", app.frameskip);
+
+#if !defined(RG_QUIET_PERIODIC_LOGS) || !RG_QUIET_PERIODIC_LOGS
+RG_LOGI("Raised frameskip to %d", app.frameskip);
+#endif
+
             }
         }
 
@@ -641,6 +653,20 @@ bool rg_task_send(rg_task_t *task, const rg_task_msg_t *msg)
 #endif
 }
 
+bool rg_task_try_send(rg_task_t *task, const rg_task_msg_t *msg)
+{
+    RG_ASSERT_ARG(task && msg);
+#if defined(ESP_PLATFORM)
+    return xQueueSend(task->queue, msg, 0) == pdTRUE;
+#elif defined(RG_TARGET_SDL2)
+    if (task->msgWaiting > 0)
+        return false;
+    task->msg = *msg;
+    task->msgWaiting = 1;
+    return true;
+#endif
+}
+
 bool rg_task_peek(rg_task_msg_t *out)
 {
     rg_task_t *task = rg_task_current();
@@ -950,6 +976,9 @@ void rg_system_panic(const char *context, const char *message)
 
 void rg_system_vlog(int level, const char *context, const char *format, va_list va)
 {
+#ifdef RG_TARGET_ROBGO_RG
+    return; // Inclui chamadas diretas que nao usam os macros RG_LOG*.
+#endif
     const char *levels[RG_LOG_MAX] = {"=", "error", "warn", "info", "debug", "trace"};
     const char *colors[RG_LOG_MAX] = {"", "\e[31m", "\e[33m", "", "\e[34m", "\e[36m"};
     char buffer[300];
@@ -1110,13 +1139,19 @@ void rg_system_set_app_speed(float speed)
     float newSpeed = RG_MIN(2.5f, RG_MAX(0.5f, speed));
     if (newSpeed == app.speed)
         return;
+    int requestedRate=(int)(app.sampleRate*newSpeed);
+    rg_audio_set_sample_rate(requestedRate);
+    if (rg_audio_get_sample_rate()!=requestedRate) {
+        RG_LOGE("Speed unchanged: audio rate update failed");
+        return;
+    }
     // FIXME: We need to store the actual default frameskip so we can return to it...
     app.frameskip = (newSpeed - 0.5f) * 3;
     app.frameTime = 1000000.f / (app.tickRate * newSpeed);
     app.speed = newSpeed;
     // There's a bug in esp-idf v4.4.8 where many frequencies play at the wrong speed.
     // Still trying to find how to work around that...
-    rg_audio_set_sample_rate(app.sampleRate * newSpeed);
+    // Audio rate was applied successfully before updating the emulation speed.
     rg_system_event(RG_EVENT_SPEEDUP, NULL);
 }
 

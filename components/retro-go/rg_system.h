@@ -268,6 +268,7 @@ rg_task_t *rg_task_create(const char *name, void (*taskFunc)(void *arg), void *a
 rg_task_t *rg_task_find(const char *name);
 rg_task_t *rg_task_current(void);
 bool rg_task_send(rg_task_t *task, const rg_task_msg_t *msg);
+bool rg_task_try_send(rg_task_t *task, const rg_task_msg_t *msg);
 bool rg_task_peek(rg_task_msg_t *out);
 bool rg_task_receive(rg_task_msg_t *out);
 bool rg_task_is_blocked(rg_task_t *task);
@@ -307,6 +308,14 @@ uint8_t rg_emu_get_last_used_slot(const char *romPath);
 #define RG_LOG_TAG __func__
 #endif
 
+#ifdef RG_TARGET_ROBGO_RG
+// Build de uso normal: nao formate nem avalie argumentos de diagnostico.
+#define RG_LOGE(...) do {} while (0)
+#define RG_LOGW(...) do {} while (0)
+#define RG_LOGI(...) do {} while (0)
+#define RG_LOGD(...) do {} while (0)
+#define RG_LOGV(...) do {} while (0)
+#else
 #define RG_LOGE(x, ...) rg_system_log(RG_LOG_ERROR, RG_LOG_TAG, x, ## __VA_ARGS__)
 #define RG_LOGW(x, ...) rg_system_log(RG_LOG_WARN, RG_LOG_TAG, x, ## __VA_ARGS__)
 #define RG_LOGI(x, ...) rg_system_log(RG_LOG_INFO, RG_LOG_TAG, x, ## __VA_ARGS__)
@@ -316,6 +325,8 @@ uint8_t rg_emu_get_last_used_slot(const char *romPath);
 #else
 #define RG_LOGD(x, ...) rg_system_log(RG_LOG_DEBUG, RG_LOG_TAG, x, ## __VA_ARGS__)
 #define RG_LOGV(x, ...) rg_system_log(RG_LOG_VERBOSE, RG_LOG_TAG, x, ## __VA_ARGS__)
+#endif
+
 #endif
 
 #ifdef RG_ENABLE_PROFILING

@@ -658,6 +658,42 @@ void application_show_file_menu(retro_file_t *file, bool advanced)
     // gui_redraw();
 }
 
+static void configure_msx_games(char *dest, size_t capacity)
+{
+    FILE *fp = fopen(RG_STORAGE_ROOT "/bootl.rc", "rb");
+    if (fp) {
+        char line[RG_PATH_MAX + 32];
+        while (fgets(line, sizeof(line), fp)) {
+            char *s = line;
+            if (strncmp(s, "\xEF\xBB\xBF", 3) == 0) s += 3;
+            while (*s == ' ' || *s == '\t') ++s;
+            if (strncmp(s, "msx_gamedir", 11) != 0) continue;
+            s += 11;
+            while (*s == ' ' || *s == '\t') ++s;
+            if (*s++ != '=') continue;
+            while (*s == ' ' || *s == '\t') ++s;
+            size_t len = strlen(s);
+            while (len && isspace((unsigned char)s[len-1])) s[--len] = 0;
+            if (!len) continue;
+            char path[RG_PATH_MAX];
+            int n;
+            if (strncmp(s, RG_STORAGE_ROOT "/", strlen(RG_STORAGE_ROOT) + 1) == 0)
+                n = snprintf(path, sizeof(path), "%s", s);
+            else
+                n = snprintf(path, sizeof(path), "%s/%s", RG_STORAGE_ROOT, *s == '/' ? s+1 : s);
+            if (n < 0 || n >= sizeof(path) || n >= capacity) {
+                RG_LOGW("msx_gamedir too long; retaining default directory");
+                continue;
+            }
+            while (n > 1 && path[n-1] == '/') path[--n] = 0;
+            memcpy(dest, path, n + 1);
+            break;
+        }
+        fclose(fp);
+    }
+    RG_LOGI("MSX games directory: %s", dest);
+}
+
 static void application(const char *desc, const char *name, const char *exts, const char *part, uint16_t crc_offset)
 {
     RG_ASSERT_ARG(desc && name && exts && part);
@@ -678,6 +714,8 @@ static void application(const char *desc, const char *name, const char *exts, co
     snprintf(app->paths.covers, RG_PATH_MAX, RG_BASE_PATH_COVERS "/%s", app->short_name);
     snprintf(app->paths.saves, RG_PATH_MAX, RG_BASE_PATH_SAVES "/%s", app->short_name);
     snprintf(app->paths.roms, RG_PATH_MAX, RG_BASE_PATH_ROMS "/%s", app->short_name);
+    if (strcmp(app->short_name, "msx") == 0)
+        configure_msx_games(app->paths.roms, sizeof(app->paths.roms));
     app->available = rg_system_have_app(app->partition);
     app->files = calloc(100, sizeof(retro_file_t));
     app->files_capacity = 100;

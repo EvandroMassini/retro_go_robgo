@@ -71,6 +71,19 @@ void rg_storage_init(void)
 #if defined(RG_STORAGE_SDSPI_HOST)
 
     RG_LOGI("Looking for SD Card using SDSPI...");
+    RG_LOGI("SD SPI config: host=%d CS=%d MOSI=%d CLK=%d MISO=%d speed=%d kHz",
+            RG_STORAGE_SDSPI_HOST, RG_GPIO_SDSPI_CS, RG_GPIO_SDSPI_MOSI,
+            RG_GPIO_SDSPI_CLK, RG_GPIO_SDSPI_MISO, RG_STORAGE_SDSPI_SPEED);
+    // CS inativo durante a configuração; pull-ups são exigidos pelo protocolo SPI do SD.
+    gpio_set_direction(RG_GPIO_SDSPI_CS, GPIO_MODE_OUTPUT);
+    gpio_set_level(RG_GPIO_SDSPI_CS, 1);
+    gpio_set_pull_mode(RG_GPIO_SDSPI_CS, GPIO_FLOATING);
+    gpio_set_pull_mode(RG_GPIO_SDSPI_MOSI, GPIO_PULLUP_ONLY);
+    gpio_set_pull_mode(RG_GPIO_SDSPI_CLK, GPIO_PULLUP_ONLY);
+    gpio_set_pull_mode(RG_GPIO_SDSPI_MISO, GPIO_PULLUP_ONLY);
+    RG_LOGI("SD GPIO levels before init: CS=%d MOSI=%d CLK=%d MISO=%d",
+            gpio_get_level(RG_GPIO_SDSPI_CS), gpio_get_level(RG_GPIO_SDSPI_MOSI),
+            gpio_get_level(RG_GPIO_SDSPI_CLK), gpio_get_level(RG_GPIO_SDSPI_MISO));
 
     spi_bus_config_t bus_cfg = {
         .mosi_io_num = RG_GPIO_SDSPI_MOSI,
@@ -82,7 +95,9 @@ void rg_storage_init(void)
 
     esp_err_t err = spi_bus_initialize(RG_STORAGE_SDSPI_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
     if (err != ESP_OK) // check but do not abort, let esp_vfs_fat_sdspi_mount decide
-        RG_LOGW("SPI bus init failed (0x%x)", err);
+        RG_LOGW("SPI bus init failed (0x%x: %s)", err, esp_err_to_name(err));
+    else
+        RG_LOGI("SPI bus initialized successfully");
 
     sdmmc_host_t host_config = SDSPI_HOST_DEFAULT();
     host_config.slot = RG_STORAGE_SDSPI_HOST;
@@ -114,6 +129,7 @@ void rg_storage_init(void)
         host_config.max_freq_khz = SDMMC_FREQ_PROBING;
         err = esp_vfs_fat_sdspi_mount(RG_STORAGE_ROOT, &host_config, &slot_config, &mount_config, &card_handle);
     }
+    RG_LOGI("SD mount result: 0x%x (%s)", err, esp_err_to_name(err));
     error_code = (int)err;
 
 #elif defined(RG_STORAGE_SDMMC_HOST)
@@ -149,6 +165,7 @@ void rg_storage_init(void)
         host_config.max_freq_khz = SDMMC_FREQ_PROBING;
         err = esp_vfs_fat_sdmmc_mount(RG_STORAGE_ROOT, &host_config, &slot_config, &mount_config, &card_handle);
     }
+    RG_LOGI("SD mount result: 0x%x (%s)", err, esp_err_to_name(err));
     error_code = (int)err;
 
 #elif defined(RG_STORAGE_USBOTG_HOST)
@@ -177,7 +194,8 @@ void rg_storage_init(void)
         };
 
         esp_err_t err = esp_vfs_fat_spiflash_mount(RG_STORAGE_ROOT, RG_STORAGE_FLASH_PARTITION, &mount_config, &wl_handle);
-        error_code = (int)err;
+        RG_LOGI("SD mount result: 0x%x (%s)", err, esp_err_to_name(err));
+    error_code = (int)err;
     }
 
 #endif
@@ -204,7 +222,8 @@ void rg_storage_deinit(void)
     {
         esp_err_t err = esp_vfs_fat_sdcard_unmount(RG_STORAGE_ROOT, card_handle);
         card_handle = NULL; // NULL it regardless of success, nothing we can do on errors...
-        error_code = (int)err;
+        RG_LOGI("SD mount result: 0x%x (%s)", err, esp_err_to_name(err));
+    error_code = (int)err;
     }
 #endif
 
@@ -213,7 +232,8 @@ void rg_storage_deinit(void)
     {
         esp_err_t err = esp_vfs_fat_spiflash_unmount(RG_STORAGE_ROOT, wl_handle);
         wl_handle = WL_INVALID_HANDLE;
-        error_code = (int)err;
+        RG_LOGI("SD mount result: 0x%x (%s)", err, esp_err_to_name(err));
+    error_code = (int)err;
     }
 #endif
 

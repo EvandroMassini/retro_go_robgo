@@ -29,7 +29,8 @@ void ResetSCC(register SCC *D,int First)
   /* Set instruments, frequencies, volumes */
   for(J=0;J<SCC_CHANNELS;J++)
   {
-    SetSound(0+First,SND_MELODIC);
+    SetSound(J+First,SND_MELODIC);
+    Sound(J+First,0,0);
     D->Freq[J]=D->Volume[J]=0;
   }
 

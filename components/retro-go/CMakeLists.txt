@@ -8,6 +8,12 @@ else() # esp-idf 4.1 - 4.4
     set(COMPONENT_REQUIRES "spi_flash fatfs app_update esp_adc_cal json nvs_flash esp_wifi esp_http_client")
 endif()
 
+if(RG_BUILD_TARGET STREQUAL "RG_TARGET_ROBGO_RG" OR "$ENV{RG_TOOL_TARGET}" STREQUAL "robgo-rg")
+    set(COMPONENT_REQUIRES "${COMPONENT_REQUIRES} fabgl")
+    set(COMPONENT_SRCDIRS "${COMPONENT_SRCDIRS} targets/robgo-rg")
+    set(RG_ROBGO_BUILD 1)
+endif()
+
 register_component()
 
 # Small size is preferred because of the small cache and most things here aren't performance sensitive!
@@ -24,6 +30,9 @@ set_source_files_properties(
     PROPERTIES COMPILE_FLAGS
     -O2
 )
+if(RG_ROBGO_BUILD)
+    set_source_files_properties(targets/robgo-rg/robgo.cpp PROPERTIES COMPILE_FLAGS -O2)
+endif()
 
 if(RG_ENABLE_NETPLAY)
     component_compile_options(-DRG_ENABLE_NETWORKING -DRG_ENABLE_NETPLAY)

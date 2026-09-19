@@ -341,7 +341,7 @@ def generate_c_font(font_name, font_size, font_data):
     char_ranges = ", ".join(get_ranges_list([g["char_code"] for g in font_data]))
 
     file_data = "#include \"../rg_gui.h\"\n\n"
-    file_data += "// File generated with font_converter.py (https://github.com/ducalex/retro-go/tree/dev/tools)\n\n"
+    file_data += "// File generated with font_converter.py (https://github.com/EvandroMassini/retro_go_robgo)\n\n"
     file_data += f"// Font           : {font_name}\n"
     file_data += f"// Point Size     : {font_size}\n"
     file_data += f"// Memory usage   : {memory_usage} bytes\n"

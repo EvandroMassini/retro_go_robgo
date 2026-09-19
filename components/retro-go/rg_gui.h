@@ -144,7 +144,7 @@ void rg_gui_about_menu(void);
 void rg_gui_debug_menu(void);
 
 // Creates a 565LE color from C_RGB(255, 255, 255)
-#define C_RGB(r, g, b) ((((r) >> 3) << 11) | (((g) >> 2) << 5) | (((b) & 0x1F)))
+#define C_RGB(r, g, b) ((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3))
 
 /* -------------------------------------------------------------------------------- */
 /* -- µGUI COLORS                                                                -- */

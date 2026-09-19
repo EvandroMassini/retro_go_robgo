@@ -4,7 +4,7 @@
 /**                                                         **/
 /** This file defines standard sound generation API and     **/
 /** functions needed to log soundtrack into a MIDI file.    **/
-/** See Sound.c and the sound drivers for the code.         **/ 
+/** See Sound.c and the sound drivers for the code.         **/
 /**                                                         **/
 /** Copyright (C) Marat Fayzullin 1996-2021                 **/
 /**     You are not allowed to distribute this software     **/
@@ -96,7 +96,7 @@ void SetSound(int Channel,int NewType);
 /** SetChannels() ********************************************/
 /** Set master volume (0..255) and switch channels on/off.  **/
 /** Each channel N has corresponding bit 2^N in Switch. Set **/
-/** or reset this bit to turn the channel on or off.        **/ 
+/** or reset this bit to turn the channel on or off.        **/
 /*************************************************************/
 void SetChannels(int Volume,int Switch);
 
@@ -130,7 +130,7 @@ unsigned int GetSndRate(void);
 /** InitMIDI() ***********************************************/
 /** Initialize soundtrack logging into MIDI file FileName.  **/
 /** Repeated calls to InitMIDI() will close current MIDI    **/
-/** file and continue logging into a new one.               **/ 
+/** file and continue logging into a new one.               **/
 /*************************************************************/
 void InitMIDI(const char *FileName);
 
@@ -153,7 +153,10 @@ int MIDILogging(int Switch);
 /*************************************************************/
 void MIDITicks(int N);
 
-#if !defined(MSDOS) & !defined(UNIX) & !defined(MAEMO) & !defined(WINDOWS) & !defined(S60) & !defined(UIQ) && !defined(ANDROID)
+#ifdef RG_TARGET_ROBGO_RG
+#undef SND_CHANNELS
+#define SND_CHANNELS 20 /* PSG 0..5, SCC 6..10, FM 11..19 */
+#elif !defined(MSDOS) & !defined(UNIX) & !defined(MAEMO) & !defined(WINDOWS) & !defined(S60) & !defined(UIQ) && !defined(ANDROID)
 #define SND_CHANNELS MIDI_CHANNELS         /* Default number */
 #endif
 

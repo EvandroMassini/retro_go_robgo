@@ -82,6 +82,11 @@ void rg_audio_init(int sampleRate)
             audio.sink = &sinks[i];
     }
     free(driver_name);
+#ifdef RG_TARGET_ROBGO_RG
+    // A versao de uso normal tem somente a saida fisica Speaker.
+    // Ignore selecoes Dummy/DMA test salvas pelos firmwares de diagnostico.
+    audio.sink = &sinks[1];
+#endif
 
     if (!audio.sink) // Default to first non-dummy if no match found
         audio.sink = &sinks[1 % RG_COUNT(sinks)];
@@ -141,13 +146,19 @@ void rg_audio_submit(const rg_audio_frame_t *frames, size_t count)
     if (!frames || !count)
         return;
 
+#ifdef RG_TARGET_ROBGO_RG
+    // Mute/volume podem ocupar o mutex brevemente. Nao descarte PCM.
+    if (ACQUIRE_DEVICE(-1))
+#else
     if (ACQUIRE_DEVICE(0))
+#endif
     {
-        audio.driver->submit(frames, count);
+        // O dispositivo pode ter sido fechado enquanto aguardavamos.
+        if (audio.driver && audio.driver->submit(frames, count))
+            counters.totalSamples += count;
         RELEASE_DEVICE();
     }
 
-    counters.totalSamples += count;
     counters.busyTime += rg_system_timer() - time_start;
 }
 
@@ -192,9 +203,11 @@ int rg_audio_get_volume(void)
 void rg_audio_set_volume(int percent)
 {
     RG_ASSERT(audio.driver != NULL, "Audio device not ready!");
+    if (!ACQUIRE_DEVICE(1000)) return;
     audio.volume = RG_MIN(RG_MAX(percent, 0), 100);
     if (audio.driver->set_volume)
         audio.driver->set_volume(audio.volume);
+    RELEASE_DEVICE();
     rg_settings_set_number(NS_GLOBAL, SETTING_VOLUME, audio.volume);
     RG_LOGI("Volume set to %d%%\n", audio.volume);
 }
@@ -223,26 +236,42 @@ int rg_audio_get_sample_rate(void)
     return audio.sampleRate;
 }
 
+// Chamado somente com audio.lock adquirido: nenhum envio concorre com o reset.
+static bool audio_reconfigure_locked(int rate)
+{
+    const rg_audio_driver_t *driver=audio.driver;
+    int old_rate=audio.sampleRate;
+    if (!driver || !driver->deinit()) return false;
+    bool ok=driver->init(audio.sink->device,rate);
+    if (ok) audio.sampleRate=rate;
+    else {
+        RG_LOGE("Audio reinit failed at %d Hz; restoring %d Hz",rate,old_rate);
+        driver->deinit();
+        if (!driver->init(audio.sink->device,old_rate)) {
+            driver->deinit();
+            audio.sink=&sinks[0]; audio.driver=audio.sink->driver;
+            audio.driver->init(audio.sink->device,old_rate);
+            RG_LOGE("Audio recovery failed; using Dummy output");
+        }
+    }
+    if (audio.driver->set_volume) audio.driver->set_volume(audio.volume);
+    if (audio.driver->set_mute) audio.driver->set_mute(audio.muted);
+    RG_LOGI("Audio reinit: success=%d rate=%d sink=%s",ok,audio.sampleRate,audio.sink->name);
+    return ok;
+}
+
 void rg_audio_set_sample_rate(int sampleRate)
 {
     RG_ASSERT(audio.driver != NULL, "Audio device not ready!");
-
-    if (audio.sampleRate == sampleRate)
-        return;
-
-    if (audio.driver->set_sample_rate)
-    {
-        if (ACQUIRE_DEVICE(1000))
-        {
-            audio.driver->set_sample_rate(sampleRate);
-            audio.sampleRate = sampleRate;
-            RG_LOGI("Samplerate set to %d", audio.sampleRate);
-            RELEASE_DEVICE();
-        }
-    }
-    else
-    {
-        rg_audio_deinit();
-        rg_audio_init(sampleRate);
-    }
+    if (sampleRate<=0 || audio.sampleRate==sampleRate) return;
+    if (!ACQUIRE_DEVICE(1000)) return;
+#ifdef RG_TARGET_ROBGO_RG
+    audio_reconfigure_locked(sampleRate);
+#else
+    if (audio.driver->set_sample_rate) {
+        if (audio.driver->set_sample_rate(sampleRate)) audio.sampleRate=sampleRate;
+        else RG_LOGE("Audio rate change failed: %d",sampleRate);
+    } else audio_reconfigure_locked(sampleRate);
+#endif
+    RELEASE_DEVICE();
 }

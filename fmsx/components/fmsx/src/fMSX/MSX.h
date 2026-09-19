@@ -45,7 +45,7 @@ extern "C" {
 
 #define HPERIOD      1368        /* HPeriod, VDP cycles      */
 #define VPERIOD_PAL  (HPERIOD*313) /* PAL VPeriod, VDP ccls  */
-#define VPERIOD_NTSC (HPERIOD*262) /* NTSC VPeriod, VDP ccls */ 
+#define VPERIOD_NTSC (HPERIOD*262) /* NTSC VPeriod, VDP ccls */
 #define HREFRESH_240 960         /* 240dot scanline refresh  */
 #define HREFRESH_256 1024        /* 256dot scanline refresh  */
 
@@ -56,7 +56,7 @@ extern "C" {
 #define CPU_H240     (HREFRESH_240/6)
 #define CPU_H256     (HREFRESH_256/6)
 
-/* Maximum state data size */   
+/* Maximum state data size */
 #define MAX_STASIZE  (0x8000+(RAMPages*0x4000)+(VRAMPages*0x4000))
 
 #define INT_IE0      0x01   /* VDP interrupt modes           */
@@ -71,10 +71,10 @@ extern "C" {
 #define JST_FIREB    0x20
 
                             /* Joystick/Mouse types:         */
-#define JOY_NONE     0      /* No joystick                   */ 
-#define JOY_STICK    1      /* Joystick                      */ 
-#define JOY_MOUSTICK 2      /* Mouse acting as joystick      */ 
-#define JOY_MOUSE    3      /* Mouse                         */ 
+#define JOY_NONE     0      /* No joystick                   */
+#define JOY_STICK    1      /* Joystick                      */
+#define JOY_MOUSTICK 2      /* Mouse acting as joystick      */
+#define JOY_MOUSE    3      /* Mouse                         */
 
                             /* ROM mapper types:             */
 #define MAP_GEN8     0      /* Generic switch, 8kB pages     */
@@ -107,7 +107,13 @@ extern "C" {
 #define MAXCHUNKS   256     /* Max number of memory blocks   */
 #define MAXCHEATS   256     /* Max number of cheats          */
 
+#ifdef RG_TARGET_ROBGO_RG
+#define MAXCHANNELS (AY8910_CHANNELS+SCC_CHANNELS+YM2413_CHANNELS)
+void SetFMEnabled(int Enabled);
+extern int FMEnabled;
+#else
 #define MAXCHANNELS (AY8910_CHANNELS+YM2413_CHANNELS)
+#endif
   /* Number of sound channels used by the emulation */
 
 /** Model and options bits and macros ************************/
@@ -118,7 +124,7 @@ extern "C" {
 #define ROMGUESS(N)     (Mode&(MSX_GUESSA<<(N)))
 #define JOYTYPE(N)      ((Mode>>(4+2*(N)))&0x03)
 #define SETROMTYPE(N,T) Mode=(Mode&~(0xF00<<(4*(N))))|((T)<<(8+4*(N)))
-#define SETJOYTYPE(N,T) Mode=(Mode&~(0x030<<(2*(N))))|((T)<<(4+2*(N))) 
+#define SETJOYTYPE(N,T) Mode=(Mode&~(0x030<<(2*(N))))|((T)<<(4+2*(N)))
 
 #define MSX_MODEL     0x00000003 /* Hardware Model:          */
 #define MSX_MSX1      0x00000000 /* MSX1 computer (TMS9918)  */
@@ -268,7 +274,7 @@ extern const char *PrnName;           /* Printer redir. file */
 extern const char *CasName;           /* Tape image file     */
 extern const char *ComName;           /* Serial redir. file  */
 extern const char *STAName;           /* State save name     */
-extern const char *FNTName;           /* Font file for text  */ 
+extern const char *FNTName;           /* Font file for text  */
 
 extern FDIDisk FDD[4];                /* Floppy disk images  */
 extern FILE *CasStream;               /* Cassette I/O stream */

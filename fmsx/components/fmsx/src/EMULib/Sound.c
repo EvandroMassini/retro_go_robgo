@@ -90,7 +90,7 @@ static struct
   const signed char *Data;        /* Wave data (-128..127 each)       */
   int Length;                     /* Wave length in Data              */
   int Rate;                       /* Wave playback rate (or 0Hz)      */
-  int Pos;                        /* Wave current position in Data    */  
+  int Pos;                        /* Wave current position in Data    */
 
   int Count;                      /* Phase counter                    */
 } WaveCH[SND_CHANNELS] =
@@ -161,7 +161,7 @@ void Sound(int Channel,int Freq,int Volume)
   Freq   = Freq<0? 0:Freq;
   Volume = Volume<0? 0:Volume>255? 255:Volume;
 
-  /* Modify channel parameters */ 
+  /* Modify channel parameters */
   WaveCH[Channel].Volume = Volume;
   WaveCH[Channel].Freq   = Freq;
 
@@ -218,7 +218,7 @@ void SetSound(int Channel,int Type)
 /** SetChannels() ********************************************/
 /** Set master volume (0..255) and switch channels on/off.  **/
 /** Each channel N has corresponding bit 2^N in Switch. Set **/
-/** or reset this bit to turn the channel on or off.        **/ 
+/** or reset this bit to turn the channel on or off.        **/
 /*************************************************************/
 void SetChannels(int Volume,int Switch)
 {
@@ -228,7 +228,7 @@ void SetChannels(int Volume,int Switch)
   /* Call sound driver if present */
   if(SndDriver.SetChannels) (*SndDriver.SetChannels)(Volume,Switch);
 
-  /* Modify wave master settings */ 
+  /* Modify wave master settings */
   MasterVolume = Volume;
   MasterSwitch = Switch&((1<<SND_CHANNELS)-1);
 }
@@ -263,7 +263,9 @@ void SetWave(int Channel,const signed char *Data,int Length,int Rate)
   WaveCH[Channel].Length = Length;
   WaveCH[Channel].Rate   = Rate;
   WaveCH[Channel].Pos    = Length? WaveCH[Channel].Pos%Length:0;
-  WaveCH[Channel].Count  = 0;
+  /* Preserve phase when SCC/FM rewrite the same table in place. */
+  if (!WaveCH[Channel].Data || WaveCH[Channel].Data != Data)
+    WaveCH[Channel].Count = 0;
   WaveCH[Channel].Data   = Data;
 
   /* Call sound driver if present */
@@ -308,7 +310,7 @@ const signed char *GetWave(int Channel)
 /** InitMIDI() ***********************************************/
 /** Initialize soundtrack logging into MIDI file FileName.  **/
 /** Repeated calls to InitMIDI() will close current MIDI    **/
-/** file and continue logging into a new one.               **/ 
+/** file and continue logging into a new one.               **/
 /*************************************************************/
 void InitMIDI(const char *FileName)
 {
@@ -683,6 +685,35 @@ void TrashSound(void)
 }
 
 #if !defined(NO_AUDIO_PLAYBACK)
+#ifdef RG_TARGET_ROBGO_RG
+/* SCC: fase Q16 com interpolacao linear. Sem vetor temporario na pilha
+   nem divisao por amostra. O indice circular permanece sempre em 0..31,
+   inclusive se a fase anterior veio de outro tipo de onda. */
+static void RenderSCCWave(int *Wave,unsigned int Samples,int Channel)
+{
+  const signed char *data = WaveCH[Channel].Data;
+  const unsigned int period = 32u << 16;
+  unsigned int phase,step,i,index,fraction;
+  int value;
+  if(!data || WaveCH[Channel].Freq <= 0 || WaveCH[Channel].Freq >= SndRate/2) return;
+  step = (unsigned int)(((unsigned long long)WaveCH[Channel].Freq * period) / SndRate);
+  if(!step) return;
+  phase = (((unsigned int)WaveCH[Channel].Pos & 31) << 16)
+        | ((unsigned int)WaveCH[Channel].Count & 0xFFFF);
+  for(i=0;i<Samples;++i)
+  {
+    index = phase >> 16;
+    fraction = phase & 0xFFFF;
+    value = (data[index]*(int)(65536-fraction)
+           + data[(index+1)&31]*(int)fraction) >> 8;
+    Wave[i] += (value*WaveCH[Channel].Volume) >> 8;
+    phase = (phase + step) & (period-1);
+  }
+  WaveCH[Channel].Pos = phase>>16;
+  WaveCH[Channel].Count = phase&0xFFFF;
+}
+#endif
+
 /** RenderAudio() ********************************************/
 /** Render given number of melodic sound samples into an    **/
 /** integer buffer for mixing.                              **/
@@ -706,6 +737,13 @@ void RenderAudio(int *Wave,unsigned int Samples)
       switch(WaveCH[J].Type)
       {
         case SND_WAVE: /* Custom Waveform */
+#ifdef RG_TARGET_ROBGO_RG
+          if(WaveCH[J].Length==32 && !WaveCH[J].Rate)
+          {
+            RenderSCCWave(Wave,Samples,J);
+            break;
+          }
+#endif
           /* Waveform data must have correct length! */
           if(WaveCH[J].Length<=0) break;
           /* Start counting */
@@ -724,9 +762,20 @@ void RenderAudio(int *Wave,unsigned int Samples)
             /* If next step... */
             if(L2>=K)
             {
-              L1 = (L1+L2/K)%WaveCH[J].Length;
+              /* K>=0x8000 e o incremento por amostra e 0x8000: no
+                 regime normal avancamos no maximo uma posicao. Evite
+                 divisoes, preservando o fallback apos mudar frequencia. */
+              if(L2-K<K)
+              {
+                L2-=K;
+                if(++L1==WaveCH[J].Length) L1=0;
+              }
+              else
+              {
+                L1 = (L1+L2/K)%WaveCH[J].Length;
+                L2 = L2%K;
+              }
               A1 = WaveCH[J].Data[L1]*V;
-              L2 = L2%K;
             }
             /* Output waveform */
             Wave[I]+=A1;
@@ -808,7 +857,7 @@ void RenderAudio(int *Wave,unsigned int Samples)
           if(WaveCH[J].Freq>=SndRate/2) break;
           K=0x10000*WaveCH[J].Freq/SndRate;
           L1=WaveCH[J].Count;
-#if !defined(SLOW_MELODIC_AUDIO)
+#if !defined(SLOW_MELODIC_AUDIO) && !defined(RG_TARGET_ROBGO_RG)
           for(I=0;I<Samples;I++,L1+=K)
             Wave[I]+=((L1-K)^(L1+K))&0x8000? 0:(L1&0x8000? 127:-128)*V;
 #else /* SLOW_MELODIC_AUDIO */
@@ -854,6 +903,14 @@ unsigned int PlayAudio(int *Wave,unsigned int Samples)
     for(I=0;I<J;++I)
     {
       D      = ((*Wave++)*MasterVolume)>>8;
+#ifdef RG_TARGET_ROBGO_RG
+      /* Ganho maior sem recorte brusco dos picos de varios canais.
+         Linear ate 75% da escala; curva continua, sem estado/AGC. */
+      if(D > 24576)
+        D = 32767 - (8191*8191)/(8191 + D - 24576);
+      else if(D < -24576)
+        D = -(32767 - (8191*8191)/(8191 - D - 24576));
+#endif
       D      = D>32767? 32767:D<-32768? -32768:D;
 #if defined(BPU16)
       Buf[I] = D+32768;
@@ -888,7 +945,7 @@ unsigned int RenderAndPlayAudio(unsigned int Samples)
 
   J       = GetFreeAudio();
   Samples = Samples<J? Samples:J;
- 
+
   /* Render and play sound */
   for(I=0;I<Samples;I+=J)
   {

@@ -395,7 +395,7 @@ static char Result[256];
 static const char *nth(const char *S,int N)
 {
   while(N) { if(!*S++) { N--;if(!*S) return(0); } }
-  return(S);  
+  return(S);
 }
 
 #if !defined(_MSC_VER) && !defined(__WATCOMC__)
@@ -435,7 +435,7 @@ void CONClear(pixel BGColor)
 
   P=(pixel *)VideoImg->Data+VideoY*VideoImg->L+VideoX;
   for(Y=VideoH;Y;--Y,P+=VideoImg->L)
-    for(X=0;X<VideoW;X++) 
+    for(X=0;X<VideoW;X++)
       P[X]=BGColor;
 }
 
@@ -580,7 +580,7 @@ void CONPrintN(int X,int Y,const char *S,int N)
       /* Skip control character */
       if(S[J]) ++J;
     }
-  } 
+  }
 }
 
 void CONPrint(int X,int Y,const char *S)
@@ -820,8 +820,14 @@ static const char *CONSelector(int X,int Y,int W,int H,pixel FGColor,pixel BGCol
       Draw=0;
     }
 
-    /* Draw arrow */
+    /* Faixa invertida destaca toda a linha, nao apenas a seta. */
+#ifdef RG_TARGET_ROBGO_RG
+    CONBox((X+1)<<3,(Y+2+Item)<<3,(W-2)<<3,8,FGColor);
+    CONSetColor(BGColor,FGColor);
+    if(Total>0) CONPrintN(X+2,Y+2+Item,nth(Items,Top+Item+1),W-3);
+#endif
     CONChar(X+1,Y+2+Item,CON_ARROW);
+    CONSetColor(FGColor,BGColor);
 
     /* Show screen */
     ShowVideo();
@@ -862,11 +868,23 @@ static const char *CONSelector(int X,int Y,int W,int H,pixel FGColor,pixel BGCol
     /* SPACE, ENTER, TAB treated as "OK" */
     if((J==' ')||(J==0x0A)||(J==0x0D)||(J==0x09)) J=CON_OK;
 
+#ifdef RG_TARGET_ROBGO_RG
+    if(FileSelect && (J==0x08 || J==CON_LEFT)) {
+      Result[0]=CON_FOLDER; Result[1]='.'; Result[2]='.'; Result[3]=0;
+      return Result;
+    }
+#endif
     /* ESCAPE, BS treated as "EXIT" */
     if((J==0x1B)||(J==0x08)) J=CON_EXIT;
 
     /* Erase arrow */
+#ifdef RG_TARGET_ROBGO_RG
+    CONBox((X+1)<<3,(Y+2+Item)<<3,(W-2)<<3,8,BGColor);
+    CONSetColor(FGColor,BGColor);
+    if(Total>0) CONPrintN(X+2,Y+2+Item,nth(Items,Top+Item+1),W-3);
+#else
     CONChar(X+1,Y+2+Item,' ');
+#endif
 
     /* When selecting a filename and a letter has been typed... */
     if(FileSelect&&(J>0x20)&&(J<0x80))
@@ -999,8 +1017,22 @@ const char *CONFile(pixel FGColor,pixel BGColor,const char *Ext)
     if(!getcwd(Buf,BufSize-2)) strcpy(Buf,"Choose File");
     J=strlen(Buf)+1;
 
+#ifdef ESP_PLATFORM
+    /* FAT/VFS pode omitir '.' e '..': ofereca o retorno explicitamente.
+       Nao permita subir acima da raiz do cartao no seletor. */
+    if(strcmp(Buf,"/") && strcmp(Buf,"/sd") && J+5<BufSize)
+    {
+      Buf[J++]=CON_FOLDER;
+      strcpy(Buf+J,"..");
+      J+=3;
+    }
+#endif
+
     /* Scan subdirectories */
     for(rewinddir(D);(DP=readdir(D));)
+#ifdef ESP_PLATFORM
+      if(strcmp(DP->d_name,".") && strcmp(DP->d_name,".."))
+#endif
       if(!stat(DP->d_name,&ST)&&S_ISDIR(ST.st_mode))
       {
         I=strlen(DP->d_name)+1;
@@ -1043,13 +1075,19 @@ const char *CONFile(pixel FGColor,pixel BGColor,const char *Ext)
       {
         case CON_FOLDER:
           /* Check that the folder is accessible */
-          if(!(D=opendir(P+1))) { /* Something went wrong */ }
+#ifdef RG_TARGET_ROBGO_RG
+          /* Atalho de pasta anterior tambem respeita a raiz do SD. */
+          if(!strcmp(P+1,"..") && (!strcmp(Buf,"/sd") || !strcmp(Buf,"/"))) break;
+#endif
+          if(!(D=opendir(P+1))) {
+            CONMsg(-1,-1,-1,-1,FGColor,BGColor,"Folder error","Cannot open folder.\0\0");
+          }
           else
           {
             /* Folder accessible, close it for now */
             closedir(D);
             /* Change to selected folder */
-            if(chdir(P+1)) { /* Something went wrong */ }
+            if(chdir(P+1)) CONMsg(-1,-1,-1,-1,FGColor,BGColor,"Folder error","Cannot change folder.\0\0");
           }
           break;
         case CON_FILE:

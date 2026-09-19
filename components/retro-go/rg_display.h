@@ -108,6 +108,7 @@ void rg_display_clear(uint16_t color_le);
 bool rg_display_sync(bool block);
 void rg_display_force_redraw(void);
 void rg_display_submit(const rg_surface_t *update, uint32_t flags);
+bool rg_display_try_submit(const rg_surface_t *update, uint32_t flags);
 
 rg_display_counters_t rg_display_get_counters(void);
 const rg_display_t *rg_display_get_info(void);
@@ -126,3 +127,6 @@ void rg_display_set_border(const char *filename);
 char *rg_display_get_border(void);
 void rg_display_set_custom_zoom(double factor);
 double rg_display_get_custom_zoom(void);
+
+int rg_display_get_monitor_format(void);
+void rg_display_set_monitor_format(int format);

@@ -191,6 +191,19 @@ bool rg_gui_set_theme(const char *theme_name)
     gui.style.scrollbar = rg_gui_get_theme_color("dialog", "scrollbar", C_WHITE);
     gui.style.shadow = rg_gui_get_theme_color("dialog", "shadow", C_NONE);
 
+#ifdef RG_TARGET_ROBGO_RG
+    // Paleta uniforme, inclusive com preferencias/temas antigos no SD.
+    // RGB565 0x000B corresponde ao azul escuro RGB222 usado no menu F10.
+    gui.style.box_background = 0x000B;
+    gui.style.box_header = C_WHITE;
+    gui.style.box_border = 0xAABF;
+    gui.style.item_standard = C_WHITE;
+    gui.style.item_disabled = C_GRAY;
+    gui.style.item_message = C_SILVER;
+    gui.style.scrollbar = C_WHITE;
+    gui.style.shadow = C_NONE;
+#endif
+
     return true;
 }
 
@@ -2012,6 +2025,19 @@ static rg_gui_event_t app_options_cb(rg_gui_option_t *option, rg_gui_event_t eve
     return RG_DIALOG_VOID;
 }
 
+#ifdef RG_TARGET_ROBGO_RG
+static rg_gui_event_t monitor_format_cb(rg_gui_option_t *o, rg_gui_event_t e)
+{
+    int value=rg_display_get_monitor_format();
+    if (e==RG_DIALOG_PREV || e==RG_DIALOG_NEXT) {
+        value=(value+(e==RG_DIALOG_NEXT?1:2))%3;
+        rg_display_set_monitor_format(value);
+    }
+    strcpy(o->value,((const char *[]) {"4:3","16:9","21:9"})[value]);
+    return RG_DIALOG_VOID;
+}
+#endif
+
 void rg_gui_options_menu(void)
 {
     rg_gui_option_t options[20] = {
@@ -2019,7 +2045,9 @@ void rg_gui_options_menu(void)
         {0, _("Brightness"),    "-", RG_DIALOG_FLAG_NORMAL, &brightness_update_cb},
         #endif
         {0, _("Volume"),        "-", RG_DIALOG_FLAG_NORMAL, &volume_update_cb},
+#ifndef RG_TARGET_ROBGO_RG
         {0, _("Audio out"),     "-", RG_DIALOG_FLAG_NORMAL, &audio_update_cb},
+#endif
         RG_DIALOG_END,
     };
     const rg_gui_option_t misc_options[] = {
@@ -2043,8 +2071,11 @@ void rg_gui_options_menu(void)
         {0, _("Filter"),        "-", RG_DIALOG_FLAG_NORMAL, &filter_update_cb},
         {0, _("Border"),        "-", RG_DIALOG_FLAG_NORMAL, &border_update_cb},
         {0, _("Speed"),         "-", RG_DIALOG_FLAG_NORMAL, &speedup_update_cb},
+#ifdef RG_TARGET_ROBGO_RG
+        {0, "Monitor", "-", RG_DIALOG_FLAG_NORMAL, &monitor_format_cb},
+#endif
         // {0, _("Misc options"),  NULL, RG_DIALOG_FLAG_NORMAL, &misc_options_cb},
-        #if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S3 // && !RG_BUILD_RELEASE
+        #if !defined(RG_TARGET_ROBGO_RG) && (CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S3)
         {0, _("Overclock"),     "-", RG_DIALOG_FLAG_NORMAL, &overclock_cb},
         #endif
         {0, _("Emulator options"), NULL, RG_DIALOG_FLAG_NORMAL, &app_options_cb},
@@ -2079,7 +2110,9 @@ void rg_gui_about_menu(void)
         RG_DIALOG_SEPARATOR,
         {4, _("Options"), NULL, have_option_btn ? RG_DIALOG_FLAG_HIDDEN : RG_DIALOG_FLAG_NORMAL , NULL},
         // {1, _("View credits", NULL, RG_DIALOG_FLAG_NORMAL, NULL},
+#ifndef RG_TARGET_ROBGO_RG
         {2, _("Debug menu"), NULL, RG_DIALOG_FLAG_NORMAL, NULL},
+#endif
         {3, _("Reset settings"), NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         RG_DIALOG_END,
     };
@@ -2095,9 +2128,11 @@ void rg_gui_about_menu(void)
                 // FIXME: This should probably be a regular dialog so that it's scrollable!
                 rg_gui_alert("Credits", RG_PROJECT_CREDITS);
                 break;
+#ifndef RG_TARGET_ROBGO_RG
             case 2:
                 rg_gui_debug_menu();
                 break;
+#endif
             case 3:
                 if (rg_gui_confirm(_("Reset all settings?"), NULL, false)) {
                     rg_storage_delete(RG_BASE_PATH_CACHE);

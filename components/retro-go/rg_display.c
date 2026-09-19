@@ -21,6 +21,7 @@ static uint32_t screen_line_checksum[RG_SCREEN_HEIGHT + 1];
 #define FLOAT_TO_INT(x) ((int)((x) + 0.1f))
 
 static const char *SETTING_BACKLIGHT = "DispBacklight";
+static int monitor_format; // 0=4:3, 1=16:9, 2=21:9
 static const char *SETTING_SCALING = "DispScaling";
 static const char *SETTING_FILTER = "DispFilter";
 static const char *SETTING_ROTATION = "DispRotation";
@@ -38,6 +39,8 @@ static inline void lcd_send_buffer(uint16_t *buffer, size_t length);
 
 #if RG_SCREEN_DRIVER == 0 || RG_SCREEN_DRIVER == 1 /* ILI9341/ST7789 */
 #include "drivers/display/ili9341.h"
+#elif RG_SCREEN_DRIVER == 2
+#include "drivers/display/robgo.h"
 #elif RG_SCREEN_DRIVER == 99
 #include "drivers/display/sdl2.h"
 #else
@@ -152,6 +155,7 @@ static inline void write_update(const rg_surface_t *update)
 
         uint16_t *line_buffer = lcd_get_buffer(LCD_BUFFER_LENGTH);
         uint16_t *line_buffer_ptr = line_buffer;
+        const bool fast_565be = !(format & RG_PIXEL_PALETTE) && format == RG_PIXEL_565_BE && !filter_x;
 
         uint32_t checksum = 0xFFFFFFFF;
         bool need_update = !partial_update;
@@ -172,7 +176,17 @@ static inline void write_update(const rg_surface_t *update)
                         *line_buffer_ptr++ = (PIXEL); \
                     } \
                 }
-                if (format & RG_PIXEL_PALETTE)
+                if (fast_565be)
+                {
+                    const uint16_t *buffer = (const uint16_t *)(data + map_viewport_to_source_y[y] * stride);
+                    if (map_viewport_to_source_x[0] == 0 && map_viewport_to_source_x[draw_width - 1] == draw_width - 1)
+                        memcpy(line_buffer_ptr, buffer, draw_width * 2);
+                    else
+                        for (int xx = 0; xx < draw_width; ++xx)
+                            line_buffer_ptr[xx] = buffer[map_viewport_to_source_x[xx]];
+                    line_buffer_ptr += draw_width;
+                }
+                else if (format & RG_PIXEL_PALETTE)
                     RENDER_LINE(uint8_t, palette[buffer[x]])
                 else if (format == RG_PIXEL_565_LE)
                     RENDER_LINE(uint16_t, (buffer[x] << 8) | (buffer[x] >> 8))
@@ -289,6 +303,14 @@ static void update_viewport_scaling(void)
         new_height = FLOAT_TO_INT(src_height * config.custom_zoom);
     }
 
+#ifdef RG_TARGET_ROBGO_RG
+    // Compense pixels fisicos largos quando o monitor estica o VGA 4:3.
+    // Full continua sendo a escolha explicita de preencher toda a tela.
+    if (config.scaling != RG_DISPLAY_SCALING_FULL) {
+        if (monitor_format==1) new_width=new_width*3/4;
+        else if (monitor_format==2) new_width=new_width*4/7;
+    }
+#endif
     // Everything works better when we use even dimensions!
     new_width &= ~1;
     new_height &= ~1;
@@ -487,13 +509,10 @@ char *rg_display_get_border(void)
     return rg_settings_get_string(NS_APP, SETTING_BORDER, NULL);
 }
 
-void rg_display_submit(const rg_surface_t *update, uint32_t flags)
+static bool display_enqueue(const rg_surface_t *update, bool block)
 {
-    const int64_t time_start = rg_system_timer();
-
-    // Those things should probably be asserted, but this is a new system let's be forgiving...
     if (!update || !update->data)
-        return;
+        return false;
 
     if (display.source.width != update->width || display.source.height != update->height)
     {
@@ -503,10 +522,26 @@ void rg_display_submit(const rg_surface_t *update, uint32_t flags)
         display.changed = true;
     }
 
-    rg_task_send(display_task_queue, &(rg_task_msg_t){.dataPtr = update});
+    rg_task_msg_t msg = {.dataPtr = update};
+    return block ? rg_task_send(display_task_queue, &msg) : rg_task_try_send(display_task_queue, &msg);
+}
 
+void rg_display_submit(const rg_surface_t *update, uint32_t flags)
+{
+    const int64_t time_start = rg_system_timer();
+    if (display_enqueue(update, true))
+        counters.totalFrames++;
     counters.blockTime += rg_system_timer() - time_start;
-    counters.totalFrames++;
+}
+
+bool rg_display_try_submit(const rg_surface_t *update, uint32_t flags)
+{
+    const int64_t time_start = rg_system_timer();
+    bool queued = display_enqueue(update, false);
+    if (queued)
+        counters.totalFrames++;
+    counters.blockTime += rg_system_timer() - time_start;
+    return queued;
 }
 
 bool rg_display_sync(bool block)
@@ -620,8 +655,18 @@ void rg_display_deinit(void)
     RG_LOGI("Display terminated.\n");
 }
 
+int rg_display_get_monitor_format(void) { return monitor_format; }
+void rg_display_set_monitor_format(int format)
+{
+    rg_display_sync(true);
+    monitor_format=RG_MIN(2,RG_MAX(0,format));
+    rg_settings_set_number(NS_GLOBAL,"MonitorFormat",monitor_format);
+    display.changed=true;
+}
+
 void rg_display_init(void)
 {
+    monitor_format=RG_MIN(2,RG_MAX(0,(int)rg_settings_get_number(NS_GLOBAL,"MonitorFormat",0)));
     RG_LOGI("Initialization...\n");
     // TO DO: We probably should call the setters to ensure valid values...
     config = (rg_display_config_t){

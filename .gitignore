@@ -2,6 +2,17 @@ __pycache__/
 .DS_Store/
 .cache/
 .vscode/
+# Arquivos locais com caminhos particulares de ferramentas.
+/robgo-dev.code-workspace
+/ROBGO.md
+**/sdkconfig.old
+*.elf
+*.map
+*.log
+/ps2-keyboard-test/sdkconfig
+*.before-robgo/
+sdkconfig.before-robgo
+sdkconfig.old.before-robgo
 build/
 
 # ESP32 build
@@ -21,3 +32,16 @@ build/
 /stdout.txt
 /gmon.out
 /*.exe
+
+# Configuracoes portaveis de VSCode; mantenha scripts/caminhos locais privados.
+!.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/c_cpp_properties.json
+/tools/idf.local.json
+/.pio/
+/dist/
+/*.bin
+*.pyc

@@ -136,6 +136,12 @@ rg_image_t *gui_get_image(const char *type, const char *subtype)
     else
         snprintf(name, sizeof(name), "%s.png", type);
 
+#ifdef RG_TARGET_ROBGO_RG
+    // Identidade RobGo na tela inicial MSX; imagem ja adaptada ao VGA RGB222.
+    if (!strcmp(type, "background") && subtype && !strcmp(subtype, "msx"))
+        snprintf(name, sizeof(name), "background_robgo.png");
+#endif
+
     // Try to get image from theme
     rg_image_t *img = rg_gui_get_theme_image(name);
     if (img)
@@ -225,6 +231,19 @@ void gui_update_theme(void)
     gui.themes[3].list.standard_fg = rg_gui_get_theme_color("launcher_4", "list_standard_fg", C_DARK_GRAY);
     gui.themes[3].list.selected_bg = rg_gui_get_theme_color("launcher_4", "list_selected_bg", C_WHITE);
     gui.themes[3].list.selected_fg = rg_gui_get_theme_color("launcher_4", "list_selected_fg", C_BLACK);
+
+#ifdef RG_TARGET_ROBGO_RG
+    // Preserve o wallpaper, mas use linhas azuis e selecao branca legivel.
+    // Todas as variantes antigas recebem a mesma identidade RobGo.
+    for (size_t i = 0; i < RG_COUNT(gui.themes); ++i) {
+        gui.themes[i].background = 0x000B;
+        gui.themes[i].foreground = C_WHITE;
+        gui.themes[i].list.standard_bg = 0x000B;
+        gui.themes[i].list.standard_fg = C_WHITE;
+        gui.themes[i].list.selected_bg = C_WHITE;
+        gui.themes[i].list.selected_fg = 0x000B;
+    }
+#endif
 
     // Flush our image cache to make sure the new images are loaded next time
     for (size_t i = 0; i < gui.tabs_count; ++i)

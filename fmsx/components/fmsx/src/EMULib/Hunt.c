@@ -34,6 +34,10 @@
 #define MEMREAD8(A)  (0)
 #endif
 
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+EXT_RAM_ATTR
+#endif
 static HUNTEntry Buf[HUNT_BUFSIZE];
 static int Count;
 

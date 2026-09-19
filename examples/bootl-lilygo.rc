@@ -1,0 +1,5 @@
+# Copiar como bootl.rc para a raiz do SD.
+kbddat=32
+kbdclk=33
+msx_biosdir=/retro-go/bios/msx
+msx_gamedir=/retro-go/roms/msx

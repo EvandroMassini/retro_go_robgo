@@ -45,6 +45,10 @@ typedef struct
   unsigned char KeyState[RPL_RECSIZE][16];
 } RPLState;
 
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+EXT_RAM_ATTR
+#endif
 static RPLState RPLData[RPL_BUFSIZE] = {{0}};
 static unsigned int StateSize = 0;
 static unsigned int TimeLeft;
@@ -293,7 +297,7 @@ unsigned int RPLPlayKeys(int Cmd,unsigned char *Keys,unsigned int KeySize)
   if(!RPLRCount)
   {
     /* Stop at the current recording position */
-    if((RPtr1==WPtr1) && (RPtr2==WPtr2)) { RPLPlay(RPL_OFF);return(RPL_ENDED); } 
+    if((RPtr1==WPtr1) && (RPtr2==WPtr2)) { RPLPlay(RPL_OFF);return(RPL_ENDED); }
 
     /* Go to the next input record inside a state slot */
     if((RPtr2<0) || (++RPtr2>=RPL_RECSIZE) || !RPLData[RPtr1].Count[RPtr2])
@@ -507,7 +511,7 @@ unsigned int RPLControls(unsigned int Buttons)
       TimeLeft  = RPLCount();
       RPLUCount = 4;
       break;
-  
+
     case BTN_RIGHT:
       /* Go to the previous state as needed */
       J         = (RPtr1+1)&(RPL_BUFSIZE-1);
@@ -517,12 +521,12 @@ unsigned int RPLControls(unsigned int Buttons)
       TimeLeft  = RPLCount();
       RPLUCount = 4;
       break;
-  
+
     case BTN_UP:
       /* Continue replay */
       RPLUCount = -1;
       break;
-  
+
     default:
       /* Stop replay */
       RPLPlay(RPL_OFF);

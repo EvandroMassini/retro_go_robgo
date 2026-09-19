@@ -20,12 +20,28 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#ifdef RG_TARGET_ROBGO_RG
+/* O console desenha no mesmo framebuffer RGB565 big-endian do MSX.
+   PIXEL do backend Unix produz a palavra na ordem nativa do ESP32. */
+#undef PIXEL
+#define PIXEL(R,G,B) ((pixel)__builtin_bswap16((((31*(R)/255)<<11)|((63*(G)/255)<<5)|(31*(B)/255))))
+#endif
+
+#ifdef RG_TARGET_ROBGO_RG
+#define CLR_BACK   PIXEL(0,0,85)
+#define CLR_BACK2  PIXEL(0,0,85)
+#define CLR_BACK3  PIXEL(0,0,85)
+#define CLR_BACK4  PIXEL(0,0,85)
+#define CLR_BACK5  PIXEL(0,0,85)
+#define CLR_TEXT   PIXEL(255,255,255)
+#else
 #define CLR_BACK   PIXEL(255,255,255)
 #define CLR_BACK2  PIXEL(255,200,150)
 #define CLR_BACK3  PIXEL(150,255,255)
 #define CLR_BACK4  PIXEL(255,255,150)
 #define CLR_BACK5  PIXEL(255,150,255)
 #define CLR_TEXT   PIXEL(0,0,0)
+#endif
 #define CLR_WHITE  PIXEL(255,255,255)
 #define CLR_ERROR  PIXEL(200,0,0)
 #define CLR_INFO   PIXEL(0,128,0)
@@ -54,6 +70,18 @@ void MenuMSX(void)
   /* Display and activate top menu */
   for(J=1;J;)
   {
+#ifdef RG_TARGET_ROBGO_RG
+    // Mapeie as entradas visiveis para as acoes originais.
+    static const int actions[]={0,1,2,4,5,6,7,8,9,14,15,16,19,20,21,23};
+    int selected=1;
+    for(I=1;I<sizeof(actions)/sizeof(actions[0]);++I)
+      if(actions[I]==J) selected=I;
+    sprintf(S,"MSX - F10\nOpen file\nSave state\nHardware model\nInput devices\nCartridge slots\nDisk drives\nCheats\nSearch cheats\nFixed font        %c\nAll sprites       %c\nPatch DiskROM     %c\nRewind tape\nReset emulator\nReturn to launcher\nResume game\n",
+      OPTION(MSX_FIXEDFONT)?CON_CHECK:' ',OPTION(MSX_ALLSPRITE)?CON_CHECK:' ',OPTION(MSX_PATCHBDOS)?CON_CHECK:' ');
+    for(I=0;S[I];++I) if(S[I]=='\n') S[I]=0;
+    selected=CONMenu(-1,-1,-1,-1,CLR_TEXT,CLR_BACK,S,selected);
+    J=selected>=0 && selected<sizeof(actions)/sizeof(actions[0]) ? actions[selected] : 0;
+#else
     /* Compose menu */
     sprintf(S,
       "fMSX\n"
@@ -91,6 +119,7 @@ void MenuMSX(void)
     for(I=0;S[I];I++) if(S[I]=='\n') S[I]='\0';
     /* Run menu */
     J=CONMenu(-1,-1,-1,-1,CLR_TEXT,CLR_BACK,S,J);
+#endif
     /* Handle menu selection */
     switch(J)
     {
@@ -105,6 +134,13 @@ void MenuMSX(void)
         break;
 
       case 2: /* Save state, printer output, or soundtrack */
+#ifdef RG_TARGET_ROBGO_RG
+        P=CONFile(CLR_TEXT,CLR_BACK2,".sta\0");
+        if(P&&!SaveSTA(P))
+          CONMsg(-1,-1,-1,-1,CLR_WHITE,CLR_ERROR,"Error","Cannot save state.\0\0");
+        J=0;
+        break;
+#endif
         /* Run menu */
         switch(CONMenu(-1,-1,-1,-1,CLR_TEXT,CLR_BACK4,
           "Save File\0Emulation state\0Printer output\0MIDI soundtrack\0",1
@@ -579,16 +615,16 @@ void MenuMSX(void)
                   sprintf(S+strlen(S),"%-9s %c\n",PP,M&(1<<J)? CON_CHECK:' ');
                 }
                 strcat(S,"  \nAdd cheats\n");
-     
+
                 /* Number of shown locations */
                 K=J;
-     
+
                 /* Replace all EOLNs with zeroes */
                 for(J=0;S[J];J++) if(S[J]=='\n') S[J]='\0';
-     
+
                 /* Run menu */
                 I=CONMenu(-1,-1,-1,16,CLR_TEXT,CLR_BACK2,S,I);
-     
+
                 /* Toggle checkmarks */
                 if((I>=1)&&(I<=K)) M^=1<<(I-1);
                 else if(I)
