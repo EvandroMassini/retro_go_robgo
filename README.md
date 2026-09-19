@@ -60,14 +60,14 @@ msx_gamedir=/FMSX/games
 |---|---|
 | `kbddat` | GPIO DATA do teclado; padrão 32. |
 | `kbdclk` | GPIO CLK do teclado; padrão 33. |
-| `msx_biosdir` | Diretório das BIOS; padrão `/retro-go/bios/msx`. |
-| `msx_gamedir` | Diretório dos jogos MSX; padrão `/retro-go/roms/msx`. O launcher pesquisa subpastas. |
+| `msx_biosdir` | Diretório das BIOS; padrão `/FMSX-go/bios/msx`. |
+| `msx_gamedir` | Diretório dos jogos MSX; padrão `/FMSX-go/roms/msx`. O launcher pesquisa subpastas. |
 
 Pares PS/2 aceitos: teclado **DATA32/CLK33**, mouse **DATA27/CLK26** (padrão LilyGO); ou teclado **DATA27/CLK26**, mouse **DATA32/CLK33**. Pares incompletos/inválidos retornam ao padrão. A versão de uso normal não imprime esse diagnóstico na serial. Se o arquivo não existir, é criado com as duas chaves do teclado padrão; as pastas usam seus valores padrão. BOM UTF-8 é aceito; evite UTF-16.
 
 Os caminhos de pastas são relativos à raiz do SD; aceitam `/` inicial ou o prefixo `/sd/`. Sem `msx_biosdir`, o firmware tenta o diretório padrão e, se o conjunto estiver incompleto, a pasta do jogo. Uma pasta explicitamente configurada tem prioridade mesmo que faltem BIOS. Os nomes atuais são **msx_biosdir** e **msx_gamedir**; não use as antigas chaves experimentais `biosdir` ou `msx_romdir`.
 
-Exemplos prontos: [LilyGO](examples/bootl-lilygo.rc) e [RobGo com par alternativo](examples/bootl-robgo.rc). Configurações de menus ficam em `/retro-go/config`; não são parâmetros de `bootl.rc`.
+Exemplos prontos: [LilyGO](examples/bootl-lilygo.rc) e [RobGo com par alternativo](examples/bootl-robgo.rc). Configurações de menus ficam em `/FMSX-go/config`; não são parâmetros de `bootl.rc`.
 
 ## Teclas e navegação
 
