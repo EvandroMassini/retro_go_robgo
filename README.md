@@ -37,12 +37,12 @@ Exemplo de organização padrão:
 
 ```
 /bootl.rc
-/retro-go/bios/msx/MSX.ROM
-/retro-go/bios/msx/MSX2.ROM
-/retro-go/bios/msx/MSX2EXT.ROM
-/retro-go/bios/msx/DISK.ROM
-/retro-go/bios/msx/MSXDOS2.ROM
-/retro-go/roms/msx/MeuJogo.rom
+/FMSX/bios/msx/MSX.ROM
+/FMSX/bios/msx/MSX2.ROM
+/FMSX/bios/msx/MSX2EXT.ROM
+/FMSX/bios/msx/DISK.ROM
+/FMSX/bios/msx/MSXDOS2.ROM
+/FMSX/games/msx/MeuJogo.rom
 ```
 
 O frontend verifica esses cinco arquivos de BIOS. O núcleo pode procurar ROMs opcionais, como FMPAC.ROM e CMOS.ROM, conforme o modo utilizado. Os nomes devem corresponder aos esperados. Use arquivos que você tenha direito de utilizar.
