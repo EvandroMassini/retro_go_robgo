@@ -1,0 +1,8 @@
+#include "fMSX/MSX.h"
+#include "EMULib/Console.h"
+#include "EMULib/EMULib.h"
+#include "EMULib/Sound.h"
+#include "EMULib/Record.h"
+#include "EMULib/Touch.h"
+#include "fMSX/CommonMux.h"
+#include "msxfix.h"

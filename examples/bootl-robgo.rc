@@ -1,5 +1,0 @@
-# Teclado no par alternativo, mouse em DATA32/CLK33.
-kbddat=27
-kbdclk=26
-msx_biosdir=/retro-go/bios/msx
-msx_gamedir=/retro-go/roms/msx

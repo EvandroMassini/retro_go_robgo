@@ -1,6 +1,0 @@
-{
-  "IDF_PATH": "C:/esp/esp-idf-v4.4.8",
-  "IDF_TOOLS_PATH": "C:/esp/tools",
-  "IDF_PYTHON_ENV_PATH": "C:/esp/tools/python_env/idf4.4_py3.11_env",
-  "python": "C:/esp/tools/python_env/idf4.4_py3.11_env/Scripts/python.exe"
-}
