@@ -965,11 +965,81 @@ int CONMenu(int X,int Y,int W,int H,pixel FGColor,pixel BGColor,const char *Item
   return(Item!=TAG_SELEFILE? CONSelector(X,Y,W,H,FGColor,BGColor,Items,Item)-Result:0);
 }
 
+/** SortEntries() ********************************************/
+/** Ordena a lista de entradas do seletor de arquivos. Cada **/
+/** entrada e [marcador][nome\0]; pastas (CON_FOLDER) vem   **/
+/** antes dos arquivos, cada grupo em ordem alfabetica sem  **/
+/** diferenciar maiusculas de minusculas. A entrada ".."    **/
+/** fica sempre no topo. Como o Console.c e incluido varias **/
+/** vezes (8/16/32 bits), protegemos contra redefinicao.    **/
+/*************************************************************/
+#ifndef CONFILE_SORT_DEFINED
+#define CONFILE_SORT_DEFINED
+static int SortCompare(const void *A,const void *B)
+{
+  const char *EA=*(const char *const *)A;
+  const char *EB=*(const char *const *)B;
+  int FA,FB,a,b;
+  const char *P1,*P2;
+
+  /* ".." sempre no topo */
+  if(!strcmp(EA+1,"..")) return(strcmp(EB+1,"..")? -1:0);
+  if(!strcmp(EB+1,"..")) return(1);
+
+  /* Pastas (CON_FOLDER) antes de arquivos (CON_FILE) */
+  FA=EA[0]==CON_FOLDER; FB=EB[0]==CON_FOLDER;
+  if(FA!=FB) return(FA? -1:1);
+
+  /* Ordem alfabetica sem diferenciar maiusculas/minusculas */
+  for(P1=EA+1,P2=EB+1;*P1&&*P2;++P1,++P2)
+  {
+    a=tolower((unsigned char)*P1);
+    b=tolower((unsigned char)*P2);
+    if(a!=b) return(a-b);
+  }
+  return((unsigned char)*P1-(unsigned char)*P2);
+}
+
+static void SortEntries(char *Buf,int Len)
+{
+  char **List,*Sorted,*T;
+  int Count,I,J,N;
+
+  if(Len<=0) return;
+
+  /* Conta as entradas (cada uma: 1 byte de marcador + nome + '\0') */
+  for(Count=0,I=0;I<Len;I+=strlen(Buf+I+1)+2) ++Count;
+  if(Count<2) return;
+
+  /* Vetor de ponteiros para cada entrada + copia de trabalho */
+  List=(char **)malloc(Count*sizeof(char *));
+  Sorted=(char *)malloc(Len);
+  if(!List||!Sorted) { if(List) free(List); if(Sorted) free(Sorted); return; }
+
+  for(N=0,I=0;I<Len;I+=strlen(Buf+I+1)+2) List[N++]=Buf+I;
+
+  qsort(List,Count,sizeof(char *),SortCompare);
+
+  /* Regrava o buffer na nova ordem */
+  for(J=0,N=0;N<Count;++N)
+  {
+    T=List[N];
+    I=strlen(T+1)+2;
+    memcpy(Sorted+J,T,I);
+    J+=I;
+  }
+  memcpy(Buf,Sorted,J);
+
+  free(Sorted);
+  free(List);
+}
+#endif /* CONFILE_SORT_DEFINED */
+
 const char *CONFile(pixel FGColor,pixel BGColor,const char *Ext)
 {
   struct dirent *DP;
   struct stat ST;
-  int I,J,BufSize;
+  int I,J,BufSize,SortStart;
   const char *P;
   char *Buf,*T;
   DIR *D;
@@ -1029,11 +1099,16 @@ const char *CONFile(pixel FGColor,pixel BGColor,const char *Ext)
     }
 #endif
 
+    /* Inicio da area de entradas: sera ordenada em ordem alfabetica no fim. */
+    SortStart=J;
+
     /* Scan subdirectories */
     for(rewinddir(D);(DP=readdir(D));)
 #ifdef ESP_PLATFORM
       if(strcmp(DP->d_name,".") && strcmp(DP->d_name,".."))
 #endif
+      /* Ignora arquivos "._nome" (AppleDouble criados pelo macOS). */
+      if(DP->d_name[0]!='.'||DP->d_name[1]!='_')
       if(!stat(DP->d_name,&ST)&&S_ISDIR(ST.st_mode))
       {
         I=strlen(DP->d_name)+1;
@@ -1047,6 +1122,8 @@ const char *CONFile(pixel FGColor,pixel BGColor,const char *Ext)
 
     /* Scan files */
     for(rewinddir(D);(DP=readdir(D));)
+      /* Ignora arquivos "._nome" (AppleDouble criados pelo macOS). */
+      if(DP->d_name[0]!='.'||DP->d_name[1]!='_')
       if(!stat(DP->d_name,&ST)&&!S_ISDIR(ST.st_mode))
       {
         I=strlen(DP->d_name)+1;
@@ -1060,6 +1137,9 @@ const char *CONFile(pixel FGColor,pixel BGColor,const char *Ext)
               break;
             }
       }
+
+    /* Ordena as entradas (pastas primeiro, cada grupo em ordem alfabetica). */
+    SortEntries(Buf+SortStart,J-SortStart);
 
     /* Terminate directory listing */
     Buf[J]='\0';
