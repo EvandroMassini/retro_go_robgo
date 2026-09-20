@@ -47,7 +47,7 @@ Exemplo de organização padrão:
 
 O frontend verifica esses cinco arquivos de BIOS. O núcleo pode procurar ROMs opcionais, como FMPAC.ROM e CMOS.ROM, conforme o modo utilizado. Os nomes devem corresponder aos esperados. Use arquivos que você tenha direito de utilizar.
 
-`bootl.rc` é texto UTF-8 na **raiz do SD**, acessado pelo firmware em `/sd/bootl.rc`. Use barras `/`, sem aspas. Reinicie após editar:
+`bootl.rc` é um arquivo de texto UTF-8 na **raiz do SD**, acessado pelo firmware em `/sd/bootl.rc`, especificamente destinado à utilizaçao com o "bootloader" do Fernando Garcia (fg1998). Use barras `/`, sem aspas. Reinicie após editar:
 
 ```ini
 kbddat=27
