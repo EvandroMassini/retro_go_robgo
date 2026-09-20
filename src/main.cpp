@@ -67,10 +67,11 @@ void loop()
     last_emu = emu;
     last_drawn = drawn;
 
-    hal_log("FPS emu %u.%u  tela %u.%u  audio %u%%  onde=%s  ram=%uK psram=%uK%s\n",
+    /*hal_log("FPS emu %u.%u  tela %u.%u  audio %u%%  onde=%s  ram=%uK psram=%uK%s\n",
             emu10 / 10, emu10 % 10, draw10 / 10, draw10 % 10,
             hal_audio_queued_bytes() * 100 / (HAL_AUDIO_STREAM_SAMPLES * 2), where,
             (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
             (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024),
             stalled ? "  <-- PARADO" : "");
-}
+*/
+            }

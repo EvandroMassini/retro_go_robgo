@@ -557,14 +557,14 @@ int StartMSX(int NewMode,int NewRAMPages,int NewVRAMPages)
 
   /* Load FMPAC cartridge */
   for(;(J<MAXSLOTS)&&ROMData[J];++J);
-  if((J<MAXSLOTS)&&LoadCart("FMPAC.ROM",J,MAP_FMPAC)) ++J;
+  if((J<MAXSLOTS)&&LoadCart("MSX2/FMPAC.ROM",J,MAP_FMPAC)) ++J;
 
   /* Load Konami GameMaster2/GameMaster cartridges */
   for(;(J<MAXSLOTS)&&ROMData[J];++J);
   if(J<MAXSLOTS)
   {
-    if(LoadCart("GMASTER2.ROM",J,MAP_GMASTER2)) ++J;
-    else if(LoadCart("GMASTER.ROM",J,0)) ++J;
+    if(LoadCart("MSX2/GMASTER2.ROM",J,MAP_GMASTER2)) ++J;
+    else if(LoadCart("MSX2/GMASTER.ROM",J,0)) ++J;
   }
 
   /* We are now back to working directory */
